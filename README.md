@@ -31,6 +31,30 @@ npm run dev
 
 Luego abre la URL local que muestra Vite en la terminal.
 
+## Conexión Con Metricool
+
+La app mantiene el modo de datos de prueba por defecto. Para activar Metricool:
+
+1. Copia `.env.example` a `.env`.
+2. Cambia `VITE_CONTENT_SOURCE=metricool`.
+3. Completa `METRICOOL_USER_TOKEN`, `METRICOOL_USER_ID` y `METRICOOL_BLOG_ID`.
+4. Ejecuta el proxy y Vite juntos:
+
+```bash
+npm run dev:full
+```
+
+También puedes ejecutarlos por separado:
+
+```bash
+npm run dev:api
+npm run dev
+```
+
+La app consulta el proxy local `/api/metricool/content` cada vez que cambias `Desde`, `Hasta`, `Últimos 7 días`, `Últimos 14 días` o haces clic en `Actualizar`.
+
+El token de Metricool queda solo en el proxy local y no se expone en React. Según la documentación oficial de Metricool, el token debe enviarse como header `X-Mc-Auth`, mientras que `userId` y `blogId` identifican la cuenta y marca.
+
 ## Build
 
 ```bash
@@ -57,3 +81,5 @@ El frontend espera filas con esta estructura:
 - publishedAt
 
 Reemplaza `src/data/mockContent.js` por las filas obtenidas desde Google Sheets y pásalas por `enrichContent`, `filterContentByDate` y `buildDashboard` desde `src/utils/analytics.js`.
+
+Si usas Metricool, la normalización ocurre en `server/metricool-proxy.mjs` antes de llegar a React.

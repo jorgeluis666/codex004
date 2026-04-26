@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   CalendarDays,
@@ -33,6 +33,11 @@ import MetricCard from './components/MetricCard.jsx';
 import SectionHeader from './components/SectionHeader.jsx';
 import { mockContent } from './data/mockContent.js';
 import {
+  fetchMetricoolContent,
+  getClientTimezone,
+  isMetricoolEnabled,
+} from './services/metricoolApi.js';
+import {
   buildDashboard,
   categories,
   enrichContent,
@@ -65,10 +70,33 @@ function toInputDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function getTodayInputDate() {
+  return toInputDate(new Date());
+}
+
 function dateDaysBefore(value, days) {
   const date = new Date(`${value}T00:00:00`);
   date.setDate(date.getDate() - days);
   return toInputDate(date);
+}
+
+function getMetricoolDateBounds() {
+  const end = new Date();
+  const start = new Date(end);
+  start.setFullYear(start.getFullYear() - 1);
+
+  return {
+    min: toInputDate(start),
+    max: toInputDate(end),
+  };
+}
+
+function getDefaultMetricoolDateRange() {
+  const end = getTodayInputDate();
+  return {
+    start: dateDaysBefore(end, 30),
+    end,
+  };
 }
 
 function App() {
@@ -76,13 +104,77 @@ function App() {
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todas');
   const [planningItems, setPlanningItems] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const metricoolEnabled = isMetricoolEnabled();
+  const metricoolTimezone = getClientTimezone();
 
-  const sourceContent = useMemo(() => enrichContent(mockContent), []);
-  const availableDateRange = useMemo(() => getContentDateRange(sourceContent), [sourceContent]);
+  const mockDateRange = useMemo(() => getContentDateRange(mockContent), []);
+  const metricoolDateBounds = useMemo(() => getMetricoolDateBounds(), []);
+  const availableDateRange = metricoolEnabled ? metricoolDateBounds : mockDateRange;
   const [dateRange, setDateRange] = useState(() => {
     const range = getContentDateRange(mockContent);
-    return { start: range.min, end: range.max };
+    return metricoolEnabled ? getDefaultMetricoolDateRange() : { start: range.min, end: range.max };
   });
+  const [metricoolState, setMetricoolState] = useState({
+    items: [],
+    isLoading: metricoolEnabled,
+    message: metricoolEnabled
+      ? 'Metricool activado. Consultando API...'
+      : 'Usando datos de prueba.',
+    error: null,
+    fetchedAt: null,
+    warnings: [],
+  });
+
+  useEffect(() => {
+    if (!metricoolEnabled) return undefined;
+
+    const controller = new AbortController();
+
+    async function loadMetricoolData() {
+      setMetricoolState((state) => ({
+        ...state,
+        isLoading: true,
+        message: 'Consultando Metricool con el rango seleccionado...',
+        error: null,
+      }));
+
+      try {
+        const payload = await fetchMetricoolContent({
+          start: dateRange.start,
+          end: dateRange.end,
+          timezone: metricoolTimezone,
+          signal: controller.signal,
+        });
+
+        setMetricoolState({
+          items: payload.items ?? [],
+          isLoading: false,
+          message: `Metricool conectado. ${payload.items?.length ?? 0} publicaciones importadas.`,
+          error: null,
+          fetchedAt: payload.fetchedAt,
+          warnings: payload.warnings ?? [],
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+
+        setMetricoolState({
+          items: [],
+          isLoading: false,
+          message: 'No se pudo cargar Metricool. Revisa credenciales o proxy local.',
+          error: error.message,
+          fetchedAt: null,
+          warnings: [],
+        });
+      }
+    }
+
+    loadMetricoolData();
+    return () => controller.abort();
+  }, [dateRange.end, dateRange.start, metricoolEnabled, metricoolTimezone, refreshKey]);
+
+  const rawSourceContent = metricoolEnabled ? metricoolState.items : mockContent;
+  const sourceContent = useMemo(() => enrichContent(rawSourceContent), [rawSourceContent]);
 
   const dateFilteredContent = useMemo(
     () => filterContentByDate(sourceContent, dateRange),
@@ -211,8 +303,12 @@ function App() {
             dateRange={dateRange}
             filteredCount={dateFilteredContent.length}
             totalCount={sourceContent.length}
+            dataSource={metricoolEnabled ? 'Metricool API' : 'Datos de prueba'}
+            dataStatus={metricoolState}
+            isLiveSource={metricoolEnabled}
             onDateChange={updateDateRange}
             onRecentDays={applyRecentDays}
+            onRefresh={() => setRefreshKey((key) => key + 1)}
             onReset={resetDateRange}
           />
         ) : null}
@@ -221,6 +317,7 @@ function App() {
         {activeView === 'content' ? (
           <ContentView
             content={filteredContent}
+            isLiveSource={metricoolEnabled}
             query={query}
             setQuery={setQuery}
             categoryFilter={categoryFilter}
@@ -261,7 +358,11 @@ function QuickSignal({ label, value, tone }) {
 function DateFilterBar({
   availableDateRange,
   dateRange,
+  dataSource,
+  dataStatus,
   filteredCount,
+  isLiveSource,
+  onRefresh,
   totalCount,
   onDateChange,
   onRecentDays,
@@ -282,6 +383,20 @@ function DateFilterBar({
             Mostrando {filteredCount} de {totalCount} publicaciones disponibles entre{' '}
             {formatDate(availableDateRange.min)} y {formatDate(availableDateRange.max)}.
           </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Badge tone={isLiveSource ? 'emerald' : 'carbon'}>{dataSource}</Badge>
+            <span className="text-sm text-slate-500">
+              {dataStatus.isLoading ? 'Cargando datos...' : dataStatus.message}
+            </span>
+          </div>
+          {dataStatus.error ? (
+            <p className="mt-2 text-sm font-medium text-rose-600">{dataStatus.error}</p>
+          ) : null}
+          {dataStatus.warnings?.length ? (
+            <p className="mt-2 text-sm text-amber-700">
+              Algunos endpoints respondieron con advertencias. El panel usa los datos disponibles.
+            </p>
+          ) : null}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] xl:min-w-[620px]">
@@ -321,6 +436,17 @@ function DateFilterBar({
               <RefreshCw size={16} aria-hidden="true" />
               Todo
             </button>
+            {isLiveSource ? (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                title="Actualizar desde Metricool"
+              >
+                <RefreshCw size={16} aria-hidden="true" />
+                Actualizar
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => onRecentDays(14)}
@@ -594,12 +720,13 @@ function InsightCard({ label, title, body }) {
   );
 }
 
-function ContentView({ content, query, setQuery, categoryFilter, setCategoryFilter }) {
+function ContentView({ content, isLiveSource, query, setQuery, categoryFilter, setCategoryFilter }) {
   return (
     <div>
       <SectionHeader eyebrow="Capa de datos" title="Tabla de rendimiento de contenido">
-        Los datos de prueba tienen la misma estructura esperada para importar ideas de Google Sheets y
-        reportes de Metricool.
+        {isLiveSource
+          ? 'Estos datos vienen de Metricool y se actualizan al cambiar el filtro de fechas.'
+          : 'Los datos de prueba tienen la misma estructura esperada para importar ideas de Google Sheets y reportes de Metricool.'}
       </SectionHeader>
 
       <div className="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
