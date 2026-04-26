@@ -63,6 +63,12 @@ El token de Metricool queda solo en el proxy local y no se expone en React. Seg√
 npm run build
 ```
 
+## Despliegue en GitHub Pages
+
+El repo incluye `.github/workflows/deploy-pages.yml` para publicar la carpeta `dist` en GitHub Pages cada vez que se hace push a `main`.
+
+En GitHub, la fuente de Pages debe estar configurada como `GitHub Actions`. La app usa `GITHUB_PAGES=true` durante el build para generar rutas con base `/codex004/`.
+
 ## Futura Integraci√≥n Con Google Sheets
 
 El frontend espera filas con esta estructura:
