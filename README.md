@@ -6,6 +6,7 @@ La app usa datos de prueba con la misma forma esperada para una futura integraci
 
 ## Qué Incluye
 
+- Formato tipo informe ejecutivo con sidebar por diagnóstico, propuesta y datos
 - Panel con análisis por tema, plataforma, gancho y decisión estratégica
 - Clasificación automática en categorías de contenido
 - Matriz de alcance e interacción
@@ -13,6 +14,7 @@ La app usa datos de prueba con la misma forma esperada para una futura integraci
 - Tabla de rendimiento con búsqueda y filtro por categoría
 - Motor de recomendaciones para nuevas ideas de reels
 - Vista editable de Próximos Reels
+- Secciones para supuestos de venta, ejes temáticos, mix por plataforma, calendario semanal y acciones de 30 días
 - Datos de prueba listos para reemplazarse por Google Sheets y Metricool
 
 ## Reglas Estratégicas
