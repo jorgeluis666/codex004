@@ -2,39 +2,43 @@ export const categories = [
   'Google Ads',
   'Meta Ads',
   'TikTok Ads',
-  'Comparisons',
-  'Errors',
-  'Investment',
-  'ROAS / Analytics',
-  'Ecommerce',
-  'Leads / WhatsApp',
-  'Case studies',
-  'Educational',
-  'Agency services',
+  'Comparaciones',
+  'Errores',
+  'Inversión',
+  'ROAS / Analítica',
+  'Comercio electrónico',
+  'Prospectos / WhatsApp',
+  'Casos de éxito',
+  'Educativo',
+  'Servicios de agencia',
 ];
 
 const categoryMatchers = [
   ['Google Ads', ['google', 'search ads', 'keywords', 'pmax']],
-  ['Meta Ads', ['meta', 'facebook', 'instagram ads', 'campaign']],
-  ['TikTok Ads', ['tiktok', 'first three seconds']],
-  ['Comparisons', [' vs ', 'versus', 'which to use', 'compare']],
-  ['Errors', ['mistake', 'error', 'fail', 'wrong', 'killing']],
-  ['Investment', ['invest', 'budget', 'spend']],
-  ['ROAS / Analytics', ['roas', 'analytics', 'attribution', 'cpa']],
-  ['Ecommerce', ['ecommerce', 'store', 'product']],
-  ['Leads / WhatsApp', ['lead', 'whatsapp', 'sales handoff']],
-  ['Case studies', ['case', 'we lowered', 'proof']],
-  ['Educational', ['how', 'why', 'understand', 'teach', 'fixes']],
-  ['Agency services', ['growth team', 'agency', 'partner']],
+  ['Meta Ads', ['meta', 'facebook', 'instagram ads', 'campaña']],
+  ['TikTok Ads', ['tiktok', 'primeros tres segundos', 'tres segundos']],
+  ['Comparaciones', [' vs ', 'versus', 'cuál usar', 'comparar']],
+  ['Errores', ['error', 'falla', 'mal', 'matando', 'equivocado']],
+  ['Inversión', ['invertir', 'inversión', 'presupuesto', 'gasto']],
+  ['ROAS / Analítica', ['roas', 'analítica', 'atribución', 'cpa']],
+  ['Comercio electrónico', ['ecommerce', 'comercio electrónico', 'tienda', 'producto']],
+  ['Prospectos / WhatsApp', ['lead', 'prospecto', 'whatsapp', 'ventas']],
+  ['Casos de éxito', ['caso', 'bajamos', 'evidencia']],
+  ['Educativo', ['cómo', 'por qué', 'entender', 'enseñar', 'ajustes']],
+  ['Servicios de agencia', ['equipo de crecimiento', 'agencia', 'socio estratégico']],
 ];
 
 export function classifyContent(item) {
+  if (categories.includes(item.topic)) {
+    return item.topic;
+  }
+
   const source = `${item.topic} ${item.hook} ${item.objective}`.toLowerCase();
   const match = categoryMatchers.find(([, keywords]) =>
     keywords.some((keyword) => source.includes(keyword)),
   );
 
-  return match?.[0] ?? item.topic ?? 'Educational';
+  return match?.[0] ?? item.topic ?? 'Educativo';
 }
 
 export function enrichContent(items) {
@@ -52,7 +56,7 @@ export function enrichContent(items) {
 }
 
 export function formatNumber(value) {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('es-PE', {
     notation: value >= 10000 ? 'compact' : 'standard',
     maximumFractionDigits: value >= 10000 ? 1 : 0,
   }).format(value);
@@ -60,6 +64,36 @@ export function formatNumber(value) {
 
 export function formatPercent(value) {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+export function formatDate(value) {
+  if (!value) return 'Sin fecha';
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+
+  return new Intl.DateTimeFormat('es-PE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+export function getContentDateRange(items) {
+  const dates = items.map((item) => item.publishedAt).filter(Boolean).sort();
+
+  return {
+    min: dates[0] ?? '',
+    max: dates[dates.length - 1] ?? '',
+  };
+}
+
+export function filterContentByDate(items, dateRange) {
+  return items.filter((item) => {
+    const afterStart = !dateRange.start || item.publishedAt >= dateRange.start;
+    const beforeEnd = !dateRange.end || item.publishedAt <= dateRange.end;
+    return afterStart && beforeEnd;
+  });
 }
 
 export function groupBy(items, key) {
@@ -96,6 +130,10 @@ export function summarizeBy(items, key) {
 }
 
 export function getThresholds(items) {
+  if (items.length === 0) {
+    return { averageReach: 0, averageEngagement: 0 };
+  }
+
   const averageReach = items.reduce((total, item) => total + item.reach, 0) / items.length;
   const averageEngagement =
     items.reduce((total, item) => total + item.engagementRate, 0) / items.length;
@@ -108,32 +146,32 @@ export function decisionFor(item, thresholds) {
 
   if (highReach && highEngagement) {
     return {
-      label: 'Repeat',
+      label: 'Repetir',
       tone: 'emerald',
-      reason: 'High reach and high engagement. Turn this angle into a series.',
+      reason: 'Alto alcance y alta interacción. Convierte este ángulo en una serie.',
     };
   }
 
   if (!highReach && highEngagement) {
     return {
-      label: 'Improve hook',
+      label: 'Mejorar gancho',
       tone: 'amber',
-      reason: 'Strong engagement but low reach. The message works, so package it with a sharper opening.',
+      reason: 'Buena interacción pero bajo alcance. El mensaje funciona, así que necesita una apertura más fuerte.',
     };
   }
 
   if (highReach && !highEngagement) {
     return {
-      label: 'Improve message',
+      label: 'Mejorar mensaje',
       tone: 'sky',
-      reason: 'Reach is healthy but the response is light. Clarify the payoff, proof, or CTA.',
+      reason: 'El alcance es saludable, pero la respuesta es baja. Aclara el beneficio, la prueba o el llamado a la acción.',
     };
   }
 
   return {
-    label: 'Stop or pivot',
+    label: 'Detener o pivotar',
     tone: 'rose',
-    reason: 'Low reach and low engagement. Rework the angle before publishing similar content.',
+    reason: 'Bajo alcance y baja interacción. Replantea el ángulo antes de publicar contenido similar.',
   };
 }
 
@@ -155,10 +193,10 @@ export function buildDashboard(items) {
     byTopic,
     byPlatform,
     bestHooks,
-    repeat: withDecisions.filter((item) => item.decision.label === 'Repeat'),
-    improveHook: withDecisions.filter((item) => item.decision.label === 'Improve hook'),
-    improveMessage: withDecisions.filter((item) => item.decision.label === 'Improve message'),
-    stop: withDecisions.filter((item) => item.decision.label === 'Stop or pivot'),
+    repeat: withDecisions.filter((item) => item.decision.label === 'Repetir'),
+    improveHook: withDecisions.filter((item) => item.decision.label === 'Mejorar gancho'),
+    improveMessage: withDecisions.filter((item) => item.decision.label === 'Mejorar mensaje'),
+    stop: withDecisions.filter((item) => item.decision.label === 'Detener o pivotar'),
   };
 }
 
@@ -170,57 +208,61 @@ export function generateRecommendations(dashboard) {
   const bestReachTopic = pickBest(dashboard.byTopic, 'Meta Ads');
   const bestEngagementTopic =
     [...dashboard.byTopic].sort((a, b) => b.engagementRate - a.engagementRate)[0]?.name ??
-    'ROAS / Analytics';
+    'ROAS / Analítica';
   const bestPlatform = pickBest(dashboard.byPlatform, 'Instagram');
   const hookToImprove = dashboard.improveHook[0] ?? dashboard.bestHooks[0];
   const messageToImprove = dashboard.improveMessage[0] ?? dashboard.bestHooks[1];
   const repeatItem = dashboard.repeat[0] ?? dashboard.bestHooks[0];
 
+  if (!repeatItem || !hookToImprove || !messageToImprove) {
+    return [];
+  }
+
   return [
     {
       id: 'rec-1',
-      title: `The hidden reason your ${bestReachTopic} content gets attention but not leads`,
-      hook: 'Getting views is not the same as getting buyers',
+      title: `La razón oculta por la que ${bestReachTopic} atrae atención pero no prospectos`,
+      hook: 'Tener vistas no es lo mismo que conseguir compradores',
       topic: bestReachTopic,
       platform: bestPlatform,
-      objective: 'Convert broad reach into qualified followers and leads',
-      reason: `${bestReachTopic} leads the account in reach. The next reel should keep the popular topic but make the sales consequence clearer.`,
+      objective: 'Convertir alcance amplio en seguidores calificados y prospectos',
+      reason: `${bestReachTopic} lidera el alcance del periodo. El próximo reel debe mantener el tema ganador y explicar mejor la consecuencia comercial.`,
     },
     {
       id: 'rec-2',
-      title: `Repeat the winning angle: ${repeatItem.hook}`,
-      hook: 'Here is the part most brands repeat too late',
+      title: `Repite el ángulo ganador: ${repeatItem.hook}`,
+      hook: 'Esta es la parte que muchas marcas corrigen demasiado tarde',
       topic: repeatItem.category,
       platform: repeatItem.platform,
-      objective: 'Create a sequel from a proven high-reach, high-engagement concept',
-      reason: `${repeatItem.category} produced both high reach and high engagement, which is the strongest repeat signal in the dataset.`,
+      objective: 'Crear una secuela de un concepto con alto alcance y alta interacción',
+      reason: `${repeatItem.category} logró alto alcance y alta interacción, la señal más clara para repetir contenido.`,
     },
     {
       id: 'rec-3',
-      title: `Fix the opening for: ${hookToImprove.topic}`,
-      hook: 'You are losing buyers before the lesson even starts',
+      title: `Mejora la apertura de: ${hookToImprove.topic}`,
+      hook: 'Estás perdiendo compradores antes de que empiece la explicación',
       topic: hookToImprove.category,
       platform: hookToImprove.platform,
-      objective: 'Increase reach on a topic that already earns saves, shares, or comments',
-      reason: `${hookToImprove.category} has above-average engagement but needs stronger packaging to earn more reach.`,
+      objective: 'Aumentar alcance en un tema que ya genera guardados, compartidos o comentarios',
+      reason: `${hookToImprove.category} tiene interacción por encima del promedio, pero necesita un empaque más fuerte para ganar alcance.`,
     },
     {
       id: 'rec-4',
-      title: `Make ${messageToImprove.category} more actionable`,
-      hook: 'Most advice skips the one metric that tells you what to do next',
+      title: `Haz que ${messageToImprove.category} sea más accionable`,
+      hook: 'La mayoría mira la métrica equivocada antes de optimizar',
       topic: messageToImprove.category,
       platform: messageToImprove.platform,
-      objective: 'Turn broad visibility into comments, saves, and follower growth',
-      reason: `${messageToImprove.category} reached people, but engagement lagged. A more concrete framework should improve response quality.`,
+      objective: 'Convertir visibilidad amplia en comentarios, guardados y crecimiento de seguidores',
+      reason: `${messageToImprove.category} consiguió alcance, pero la interacción quedó rezagada. Un marco más concreto debería mejorar la respuesta.`,
     },
     {
       id: 'rec-5',
-      title: `A practical guide to ${bestEngagementTopic} for retail brands`,
-      hook: 'Save this before you launch your next campaign',
+      title: `Guía práctica de ${bestEngagementTopic} para marcas de comercio minorista`,
+      hook: 'Guarda esto antes de lanzar tu próxima campaña',
       topic: bestEngagementTopic,
       platform: bestPlatform === 'TikTok' ? 'Instagram' : 'TikTok',
-      objective: 'Repurpose high-engagement thinking on the other priority platform',
-      reason: `${bestEngagementTopic} has the strongest engagement rate. Repurposing it can help find follower growth on the other channel.`,
+      objective: 'Reutilizar un tema de alta interacción en la otra plataforma prioritaria',
+      reason: `${bestEngagementTopic} tiene la mejor tasa de interacción. Adaptarlo puede ayudar a encontrar crecimiento de seguidores en el otro canal.`,
     },
   ];
 }

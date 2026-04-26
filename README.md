@@ -1,34 +1,35 @@
-# Content Growth Planner
+# Planificador de Crecimiento de Contenido
 
-Content Growth Planner is a React and Tailwind CSS frontend for Lima Retail, a digital marketing agency that wants to improve TikTok and Instagram content strategy using real performance data.
+Aplicación frontend para Lima Retail, una agencia de marketing digital que quiere mejorar su estrategia de contenidos en TikTok e Instagram usando datos reales de rendimiento.
 
-The app currently uses mock data shaped like a future Google Sheets plus Metricool import. It analyzes content topics, hooks, platforms, reach, engagement, follower growth, and turns those signals into tactical next-reel recommendations.
+La app usa datos de prueba con la misma forma esperada para una futura integración entre Google Sheets y reportes de Metricool. Analiza temas, ganchos, plataformas, alcance, interacción, crecimiento de seguidores y convierte esas señales en recomendaciones tácticas para próximos reels.
 
-## What It Includes
+## Qué Incluye
 
-- Dashboard with topic, platform, hook, and decision insights
-- Auto-classification into strategic content categories
-- Reach vs engagement decision matrix
-- Content performance table with search and category filters
-- Recommendation engine for new reel ideas
-- Editable Next Reels planning view
-- Mock data ready to replace with Google Sheets and Metricool inputs
+- Panel con análisis por tema, plataforma, gancho y decisión estratégica
+- Clasificación automática en categorías de contenido
+- Matriz de alcance e interacción
+- Filtros globales por fecha según el periodo disponible en los datos
+- Tabla de rendimiento con búsqueda y filtro por categoría
+- Motor de recomendaciones para nuevas ideas de reels
+- Vista editable de Próximos Reels
+- Datos de prueba listos para reemplazarse por Google Sheets y Metricool
 
-## Strategy Rules
+## Reglas Estratégicas
 
-- Good engagement but low reach: improve hooks
-- High reach but low engagement: improve message
-- High reach and high engagement: repeat content
-- Low reach and low engagement: stop or pivot
+- Buena interacción pero bajo alcance: mejorar ganchos
+- Alto alcance pero baja interacción: mejorar mensaje
+- Alto alcance y alta interacción: repetir contenido
+- Bajo alcance y baja interacción: detener o pivotar
 
-## Setup
+## Instalación
 
 ```bash
 npm install
 npm run dev
 ```
 
-Then open the local Vite URL shown in the terminal.
+Luego abre la URL local que muestra Vite en la terminal.
 
 ## Build
 
@@ -36,9 +37,9 @@ Then open the local Vite URL shown in the terminal.
 npm run build
 ```
 
-## Future Google Sheets Integration
+## Futura Integración Con Google Sheets
 
-The frontend expects content rows with this shape:
+El frontend espera filas con esta estructura:
 
 - platform
 - contentType
@@ -53,5 +54,6 @@ The frontend expects content rows with this shape:
 - saves
 - shares
 - followersGained
+- publishedAt
 
-Replace `src/data/mockContent.js` with fetched rows from Google Sheets, then pass them through `enrichContent` and `buildDashboard` from `src/utils/analytics.js`.
+Reemplaza `src/data/mockContent.js` por las filas obtenidas desde Google Sheets y pásalas por `enrichContent`, `filterContentByDate` y `buildDashboard` desde `src/utils/analytics.js`.

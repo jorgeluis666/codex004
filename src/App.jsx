@@ -36,16 +36,19 @@ import {
   buildDashboard,
   categories,
   enrichContent,
+  filterContentByDate,
+  formatDate,
   formatNumber,
   formatPercent,
   generateRecommendations,
+  getContentDateRange,
 } from './utils/analytics.js';
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-  { id: 'content', label: 'Content', icon: FileSpreadsheet },
+  { id: 'dashboard', label: 'Panel', icon: BarChart3 },
+  { id: 'content', label: 'Contenido', icon: FileSpreadsheet },
   { id: 'recommendations', label: 'Ideas', icon: Lightbulb },
-  { id: 'planning', label: 'Next Reels', icon: CalendarDays },
+  { id: 'planning', label: 'Próximos Reels', icon: CalendarDays },
 ];
 
 const platformColors = {
@@ -54,25 +57,62 @@ const platformColors = {
 };
 
 function chartTooltipFormatter(value, name) {
-  if (name === 'Engagement rate') return formatPercent(value);
+  if (String(name).toLowerCase().includes('interacción')) return formatPercent(value);
   return formatNumber(value);
+}
+
+function toInputDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function dateDaysBefore(value, days) {
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() - days);
+  return toInputDate(date);
 }
 
 function App() {
   const [activeView, setActiveView] = useState('dashboard');
   const [query, setQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('Todas');
   const [planningItems, setPlanningItems] = useState([]);
 
-  const dashboard = useMemo(() => buildDashboard(enrichContent(mockContent)), []);
+  const sourceContent = useMemo(() => enrichContent(mockContent), []);
+  const availableDateRange = useMemo(() => getContentDateRange(sourceContent), [sourceContent]);
+  const [dateRange, setDateRange] = useState(() => {
+    const range = getContentDateRange(mockContent);
+    return { start: range.min, end: range.max };
+  });
+
+  const dateFilteredContent = useMemo(
+    () => filterContentByDate(sourceContent, dateRange),
+    [sourceContent, dateRange],
+  );
+  const dashboard = useMemo(() => buildDashboard(dateFilteredContent), [dateFilteredContent]);
   const recommendations = useMemo(() => generateRecommendations(dashboard), [dashboard]);
 
   const filteredContent = dashboard.content.filter((item) => {
-    const haystack = `${item.platform} ${item.contentType} ${item.category} ${item.hook} ${item.objective}`.toLowerCase();
+    const haystack =
+      `${item.platform} ${item.contentType} ${item.category} ${item.hook} ${item.objective}`.toLowerCase();
     const matchesQuery = haystack.includes(query.toLowerCase());
-    const matchesCategory = categoryFilter === 'All' || item.category === categoryFilter;
+    const matchesCategory = categoryFilter === 'Todas' || item.category === categoryFilter;
     return matchesQuery && matchesCategory;
   });
+
+  function updateDateRange(field, value) {
+    setDateRange((range) => ({ ...range, [field]: value }));
+  }
+
+  function resetDateRange() {
+    setDateRange({ start: availableDateRange.min, end: availableDateRange.max });
+  }
+
+  function applyRecentDays(days) {
+    setDateRange({
+      start: dateDaysBefore(availableDateRange.max, days),
+      end: availableDateRange.max,
+    });
+  }
 
   function addRecommendationToPlan(recommendation) {
     const exists = planningItems.some((item) => item.sourceId === recommendation.id);
@@ -87,9 +127,9 @@ function App() {
         topic: recommendation.topic,
         platform: recommendation.platform,
         script:
-          'Opening problem. Show the metric or mistake. Explain the fix in three steps. Close with a direct CTA to follow Lima Retail for more growth breakdowns.',
+          'Problema inicial. Muestra la métrica o el error. Explica la solución en tres pasos. Cierra con un llamado a la acción directo para seguir a Lima Retail.',
         date: '2026-05-06',
-        status: 'pending',
+        status: 'pendiente',
       },
     ]);
   }
@@ -115,28 +155,28 @@ function App() {
                     Lima Retail
                   </p>
                   <h1 className="text-3xl font-semibold tracking-normal text-ink">
-                    Content Growth Planner
+                    Planificador de Crecimiento de Contenido
                   </h1>
                 </div>
               </div>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                A decision dashboard for turning Google Sheets ideas and Metricool performance
-                exports into repeatable TikTok and Instagram content strategy.
+                Panel de decisión para convertir ideas de Google Sheets y reportes de Metricool en
+                una estrategia repetible para TikTok e Instagram.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 lg:min-w-[520px]">
-              <QuickSignal label="Repeat" value={dashboard.repeat.length} tone="bg-emerald-500" />
+              <QuickSignal label="Repetir" value={dashboard.repeat.length} tone="bg-emerald-500" />
               <QuickSignal
-                label="Hooks"
+                label="Ganchos"
                 value={dashboard.improveHook.length}
                 tone="bg-amber-500"
               />
               <QuickSignal
-                label="Messages"
+                label="Mensajes"
                 value={dashboard.improveMessage.length}
                 tone="bg-sky-500"
               />
-              <QuickSignal label="Stop" value={dashboard.stop.length} tone="bg-rose-500" />
+              <QuickSignal label="Detener" value={dashboard.stop.length} tone="bg-rose-500" />
             </div>
           </div>
           <nav className="flex gap-2 overflow-x-auto pb-1">
@@ -165,6 +205,18 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {activeView !== 'planning' ? (
+          <DateFilterBar
+            availableDateRange={availableDateRange}
+            dateRange={dateRange}
+            filteredCount={dateFilteredContent.length}
+            totalCount={sourceContent.length}
+            onDateChange={updateDateRange}
+            onRecentDays={applyRecentDays}
+            onReset={resetDateRange}
+          />
+        ) : null}
+
         {activeView === 'dashboard' ? <DashboardView dashboard={dashboard} /> : null}
         {activeView === 'content' ? (
           <ContentView
@@ -183,9 +235,13 @@ function App() {
           />
         ) : null}
         {activeView === 'planning' ? (
-          <PlanningView items={planningItems} onUpdate={updatePlanningItem} onSeed={() => {
-            recommendations.forEach(addRecommendationToPlan);
-          }} />
+          <PlanningView
+            items={planningItems}
+            onUpdate={updatePlanningItem}
+            onSeed={() => {
+              recommendations.forEach(addRecommendationToPlan);
+            }}
+          />
         ) : null}
       </main>
     </div>
@@ -202,7 +258,102 @@ function QuickSignal({ label, value, tone }) {
   );
 }
 
+function DateFilterBar({
+  availableDateRange,
+  dateRange,
+  filteredCount,
+  totalCount,
+  onDateChange,
+  onRecentDays,
+  onReset,
+}) {
+  return (
+    <section className="mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-coral">
+            <CalendarDays size={18} aria-hidden="true" />
+            <p className="text-xs font-bold uppercase tracking-[0.16em]">Filtro de fechas</p>
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">
+            Periodo analizado: {formatDate(dateRange.start)} - {formatDate(dateRange.end)}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Mostrando {filteredCount} de {totalCount} publicaciones disponibles entre{' '}
+            {formatDate(availableDateRange.min)} y {formatDate(availableDateRange.max)}.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] xl:min-w-[620px]">
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+              Desde
+            </span>
+            <input
+              type="date"
+              min={availableDateRange.min}
+              max={availableDateRange.max}
+              value={dateRange.start}
+              onChange={(event) => onDateChange('start', event.target.value)}
+              className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-pool"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+              Hasta
+            </span>
+            <input
+              type="date"
+              min={availableDateRange.min}
+              max={availableDateRange.max}
+              value={dateRange.end}
+              onChange={(event) => onDateChange('end', event.target.value)}
+              className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-pool"
+            />
+          </label>
+          <div className="flex flex-wrap items-end gap-2">
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-ink px-3 text-sm font-semibold text-white hover:bg-carbon"
+              title="Ver todo el periodo"
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              Todo
+            </button>
+            <button
+              type="button"
+              onClick={() => onRecentDays(14)}
+              className="min-h-11 rounded-lg bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              Últimos 14 días
+            </button>
+            <button
+              type="button"
+              onClick={() => onRecentDays(7)}
+              className="min-h-11 rounded-lg bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              Últimos 7 días
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function DashboardView({ dashboard }) {
+  if (dashboard.content.length === 0) {
+    return (
+      <div className="space-y-8">
+        <SectionHeader eyebrow="Centro de decisión" title="Panel de rendimiento">
+          Ajusta el rango de fechas para volver a cargar los indicadores.
+        </SectionHeader>
+        <EmptyState title="No hay datos en este periodo" body="Elige un rango con publicaciones para calcular el panel." />
+      </div>
+    );
+  }
+
   const totalReach = dashboard.content.reduce((total, item) => total + item.reach, 0);
   const totalEngagement = dashboard.content.reduce((total, item) => total + item.interactions, 0);
   const totalFollowers = dashboard.content.reduce(
@@ -216,11 +367,11 @@ function DashboardView({ dashboard }) {
   const bestPlatform = dashboard.byPlatform[0];
   const topicChartData = dashboard.byTopic.slice(0, 8).map((item) => ({
     ...item,
-    'Engagement rate': item.engagementRate,
+    'Tasa de interacción': item.engagementRate,
   }));
   const platformChartData = dashboard.byPlatform.map((item) => ({
     ...item,
-    'Engagement rate': item.engagementRate,
+    'Tasa de interacción': item.engagementRate,
   }));
   const scatterData = dashboard.content.map((item) => ({
     ...item,
@@ -231,42 +382,42 @@ function DashboardView({ dashboard }) {
 
   return (
     <div className="space-y-8">
-      <SectionHeader eyebrow="Decision hub" title="Performance dashboard">
-        Reach tells us what the market noticed. Engagement tells us what was valuable enough to
-        react to, save, or share.
+      <SectionHeader eyebrow="Centro de decisión" title="Panel de rendimiento">
+        El alcance muestra qué notó el mercado. La interacción muestra qué fue suficientemente
+        valioso para reaccionar, guardar o compartir.
       </SectionHeader>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Total reach"
+          label="Alcance total"
           value={formatNumber(totalReach)}
-          detail={`${dashboard.content.length} analyzed posts from Metricool-style data`}
+          detail={`${dashboard.content.length} publicaciones analizadas con datos tipo Metricool`}
           accent="bg-pool"
         />
         <MetricCard
-          label="Total interactions"
+          label="Interacciones totales"
           value={formatNumber(totalEngagement)}
-          detail={`Average engagement ${formatPercent(dashboard.thresholds.averageEngagement)}`}
+          detail={`Promedio de interacción ${formatPercent(dashboard.thresholds.averageEngagement)}`}
           accent="bg-coral"
         />
         <MetricCard
-          label="Followers gained"
+          label="Seguidores ganados"
           value={formatNumber(totalFollowers)}
-          detail="Optional growth signal included in every recommendation"
+          detail="Señal de crecimiento incluida en cada recomendación"
           accent="bg-lime"
         />
         <MetricCard
-          label="Best platform"
+          label="Mejor plataforma"
           value={bestPlatform.name}
-          detail={`${formatNumber(bestPlatform.reach)} reach with ${formatPercent(
+          detail={`${formatNumber(bestPlatform.reach)} de alcance con ${formatPercent(
             bestPlatform.engagementRate,
-          )} engagement`}
+          )} de interacción`}
           accent="bg-grape"
         />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <Panel title="Best topics by reach" icon={LineChart}>
+        <Panel title="Mejores temas por alcance" icon={LineChart}>
           <ChartFrame>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topicChartData} margin={{ top: 10, right: 12, bottom: 8, left: 0 }}>
@@ -274,13 +425,13 @@ function DashboardView({ dashboard }) {
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-18} height={70} />
                 <YAxis tickFormatter={formatNumber} width={46} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={chartTooltipFormatter} />
-                <Bar dataKey="reach" name="Reach" radius={[6, 6, 0, 0]} fill="#2bbbd8" />
+                <Bar dataKey="reach" name="Alcance" radius={[6, 6, 0, 0]} fill="#2bbbd8" />
               </BarChart>
             </ResponsiveContainer>
           </ChartFrame>
         </Panel>
 
-        <Panel title="Best hooks" icon={Megaphone}>
+        <Panel title="Mejores ganchos" icon={Megaphone}>
           <div className="space-y-3">
             {dashboard.bestHooks.map((item, index) => (
               <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -300,7 +451,7 @@ function DashboardView({ dashboard }) {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="Performance by platform" icon={BarChart3}>
+        <Panel title="Rendimiento por plataforma" icon={BarChart3}>
           <ChartFrame>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={platformChartData} margin={{ top: 10, right: 12, bottom: 10, left: 0 }}>
@@ -309,25 +460,30 @@ function DashboardView({ dashboard }) {
                 <YAxis tickFormatter={formatNumber} width={46} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={chartTooltipFormatter} />
                 <Legend />
-                <Bar dataKey="reach" name="Reach" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="reach" name="Alcance" radius={[6, 6, 0, 0]}>
                   {platformChartData.map((entry) => (
                     <Cell key={entry.name} fill={platformColors[entry.name]} />
                   ))}
                 </Bar>
-                <Bar dataKey="followersGained" name="Followers gained" radius={[6, 6, 0, 0]} fill="#6f5bd7" />
+                <Bar
+                  dataKey="followersGained"
+                  name="Seguidores ganados"
+                  radius={[6, 6, 0, 0]}
+                  fill="#6f5bd7"
+                />
               </BarChart>
             </ResponsiveContainer>
           </ChartFrame>
         </Panel>
 
-        <Panel title="Reach vs engagement matrix" icon={Target}>
+        <Panel title="Matriz de alcance e interacción" icon={Target}>
           <ChartFrame>
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 12, right: 18, bottom: 16, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="x"
-                  name="Reach"
+                  name="Alcance"
                   tickFormatter={formatNumber}
                   tick={{ fontSize: 12 }}
                   type="number"
@@ -335,7 +491,7 @@ function DashboardView({ dashboard }) {
                 />
                 <YAxis
                   dataKey="y"
-                  name="Engagement"
+                  name="Interacción"
                   tickFormatter={formatPercent}
                   tick={{ fontSize: 12 }}
                   type="number"
@@ -343,11 +499,11 @@ function DashboardView({ dashboard }) {
                 <Tooltip
                   cursor={{ strokeDasharray: '3 3' }}
                   formatter={(value, name) =>
-                    name === 'Engagement' ? formatPercent(value) : formatNumber(value)
+                    name === 'Interacción' ? formatPercent(value) : formatNumber(value)
                   }
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.hook ?? ''}
                 />
-                <Scatter data={scatterData} name="Content">
+                <Scatter data={scatterData} name="Contenido">
                   {scatterData.map((entry) => (
                     <Cell key={entry.id} fill={platformColors[entry.platform]} />
                   ))}
@@ -356,33 +512,33 @@ function DashboardView({ dashboard }) {
             </ResponsiveContainer>
           </ChartFrame>
           <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
-            <p>Good engagement + low reach: improve hooks.</p>
-            <p>High reach + low engagement: improve message.</p>
-            <p>High reach + high engagement: repeat content.</p>
-            <p>Low reach + low engagement: stop or pivot.</p>
+            <p>Buena interacción + bajo alcance: mejorar ganchos.</p>
+            <p>Alto alcance + baja interacción: mejorar mensaje.</p>
+            <p>Alto alcance + alta interacción: repetir contenido.</p>
+            <p>Bajo alcance + baja interacción: detener o pivotar.</p>
           </div>
         </Panel>
       </div>
 
-      <Panel title="Strategic calls" icon={CheckCircle2}>
+      <Panel title="Decisiones estratégicas" icon={CheckCircle2}>
         <div className="grid gap-4 lg:grid-cols-4">
-          <DecisionColumn title="Repeat" items={dashboard.repeat} tone="emerald" />
-          <DecisionColumn title="Improve hook" items={dashboard.improveHook} tone="amber" />
-          <DecisionColumn title="Improve message" items={dashboard.improveMessage} tone="sky" />
-          <DecisionColumn title="Stop or pivot" items={dashboard.stop} tone="rose" />
+          <DecisionColumn title="Repetir" items={dashboard.repeat} tone="emerald" />
+          <DecisionColumn title="Mejorar gancho" items={dashboard.improveHook} tone="amber" />
+          <DecisionColumn title="Mejorar mensaje" items={dashboard.improveMessage} tone="sky" />
+          <DecisionColumn title="Detener o pivotar" items={dashboard.stop} tone="rose" />
         </div>
       </Panel>
 
       <div className="grid gap-4 md:grid-cols-2">
         <InsightCard
-          label="Best topic by reach"
+          label="Mejor tema por alcance"
           title={bestTopicByReach.name}
-          body={`${formatNumber(bestTopicByReach.reach)} reach across ${bestTopicByReach.posts} posts. Use this topic to earn attention, then tighten the CTA and proof. `}
+          body={`${formatNumber(bestTopicByReach.reach)} de alcance en ${bestTopicByReach.posts} publicaciones. Usa este tema para ganar atención y luego ajusta llamado a la acción, prueba y oferta.`}
         />
         <InsightCard
-          label="Best topic by engagement"
+          label="Mejor tema por interacción"
           title={bestTopicByEngagement.name}
-          body={`${formatPercent(bestTopicByEngagement.engagementRate)} engagement. This is the clearest signal for educational depth, saves, and repeatable follow-ups.`}
+          body={`${formatPercent(bestTopicByEngagement.engagementRate)} de interacción. Es la señal más clara para profundizar, generar guardados y crear seguimientos.`}
         />
       </div>
     </div>
@@ -420,7 +576,7 @@ function DecisionColumn({ title, items, tone }) {
         ))}
         {items.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-300 p-3 text-sm text-slate-500">
-            No content in this quadrant yet.
+            No hay contenido en este cuadrante.
           </p>
         ) : null}
       </div>
@@ -441,9 +597,9 @@ function InsightCard({ label, title, body }) {
 function ContentView({ content, query, setQuery, categoryFilter, setCategoryFilter }) {
   return (
     <div>
-      <SectionHeader eyebrow="Input layer" title="Content performance table">
-        Mock data mirrors the future Google Sheets plus Metricool import shape, including hook,
-        objective, performance metrics, and auto-classified category.
+      <SectionHeader eyebrow="Capa de datos" title="Tabla de rendimiento de contenido">
+        Los datos de prueba tienen la misma estructura esperada para importar ideas de Google Sheets y
+        reportes de Metricool.
       </SectionHeader>
 
       <div className="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
@@ -453,7 +609,7 @@ function ContentView({ content, query, setQuery, categoryFilter, setCategoryFilt
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-            placeholder="Search by topic, hook, objective, or platform"
+            placeholder="Buscar por tema, gancho, objetivo o plataforma"
           />
         </label>
         <select
@@ -461,7 +617,7 @@ function ContentView({ content, query, setQuery, categoryFilter, setCategoryFilt
           onChange={(event) => setCategoryFilter(event.target.value)}
           className="min-h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none"
         >
-          <option>All</option>
+          <option>Todas</option>
           {categories.map((category) => (
             <option key={category}>{category}</option>
           ))}
@@ -470,24 +626,26 @@ function ContentView({ content, query, setQuery, categoryFilter, setCategoryFilt
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-[1160px] divide-y divide-slate-200 text-left text-sm">
+          <table className="min-w-[1240px] divide-y divide-slate-200 text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
               <tr>
-                <th className="px-4 py-3">Platform</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Hook</th>
-                <th className="px-4 py-3">Objective</th>
-                <th className="px-4 py-3">Reach</th>
-                <th className="px-4 py-3">Views</th>
-                <th className="px-4 py-3">Engagement</th>
-                <th className="px-4 py-3">Followers</th>
-                <th className="px-4 py-3">Decision</th>
+                <th className="px-4 py-3">Fecha</th>
+                <th className="px-4 py-3">Plataforma</th>
+                <th className="px-4 py-3">Tipo</th>
+                <th className="px-4 py-3">Categoría</th>
+                <th className="px-4 py-3">Gancho</th>
+                <th className="px-4 py-3">Objetivo</th>
+                <th className="px-4 py-3">Alcance</th>
+                <th className="px-4 py-3">Vistas</th>
+                <th className="px-4 py-3">Interacción</th>
+                <th className="px-4 py-3">Seguidores</th>
+                <th className="px-4 py-3">Decisión</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {content.map((item) => (
                 <tr key={item.id} className="align-top hover:bg-slate-50">
+                  <td className="px-4 py-4 text-slate-600">{formatDate(item.publishedAt)}</td>
                   <td className="px-4 py-4 font-semibold text-ink">{item.platform}</td>
                   <td className="px-4 py-4 capitalize text-slate-600">{item.contentType}</td>
                   <td className="px-4 py-4">
@@ -507,6 +665,14 @@ function ContentView({ content, query, setQuery, categoryFilter, setCategoryFilt
             </tbody>
           </table>
         </div>
+        {content.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              title="No hay filas para mostrar"
+              body="Prueba con otro rango de fechas, categoría o término de búsqueda."
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -515,50 +681,57 @@ function ContentView({ content, query, setQuery, categoryFilter, setCategoryFilt
 function RecommendationView({ recommendations, planningItems, onAdd }) {
   return (
     <div>
-      <SectionHeader eyebrow="Recommendation engine" title="New reel ideas">
-        Ideas are generated from the repeat, hook, message, and stop signals instead of guessing
-        from generic content prompts.
+      <SectionHeader eyebrow="Motor de recomendaciones" title="Nuevas ideas de reels">
+        Las ideas se recalculan con el periodo filtrado y nacen de señales reales: repetir,
+        mejorar gancho, mejorar mensaje o detener.
       </SectionHeader>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {recommendations.map((recommendation) => {
-          const isPlanned = planningItems.some((item) => item.sourceId === recommendation.id);
-          return (
-            <article
-              key={recommendation.id}
-              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <Badge tone="grape">{recommendation.topic}</Badge>
-                  <h3 className="mt-3 text-xl font-semibold tracking-normal text-ink">
-                    {recommendation.title}
-                  </h3>
+      {recommendations.length === 0 ? (
+        <EmptyState
+          title="No hay recomendaciones para este periodo"
+          body="Selecciona un rango con publicaciones para generar ideas nuevas."
+        />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {recommendations.map((recommendation) => {
+            const isPlanned = planningItems.some((item) => item.sourceId === recommendation.id);
+            return (
+              <article
+                key={recommendation.id}
+                className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <Badge tone="grape">{recommendation.topic}</Badge>
+                    <h3 className="mt-3 text-xl font-semibold tracking-normal text-ink">
+                      {recommendation.title}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onAdd(recommendation)}
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+                      isPlanned
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-ink text-white hover:bg-carbon'
+                    }`}
+                    title={isPlanned ? 'Ya está planificado' : 'Agregar a Próximos Reels'}
+                  >
+                    {isPlanned ? <CheckCircle2 size={16} /> : <Plus size={16} />}
+                    {isPlanned ? 'Planificado' : 'Planear'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onAdd(recommendation)}
-                  className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
-                    isPlanned
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-ink text-white hover:bg-carbon'
-                  }`}
-                  title={isPlanned ? 'Already planned' : 'Add to Next Reels'}
-                >
-                  {isPlanned ? <CheckCircle2 size={16} /> : <Plus size={16} />}
-                  {isPlanned ? 'Planned' : 'Plan'}
-                </button>
-              </div>
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                <Info label="Hook" value={recommendation.hook} />
-                <Info label="Platform" value={recommendation.platform} />
-                <Info label="Objective" value={recommendation.objective} />
-                <Info label="Reason" value={recommendation.reason} wide />
-              </dl>
-            </article>
-          );
-        })}
-      </div>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  <Info label="Gancho" value={recommendation.hook} />
+                  <Info label="Plataforma" value={recommendation.platform} />
+                  <Info label="Objetivo" value={recommendation.objective} />
+                  <Info label="Razón basada en datos" value={recommendation.reason} wide />
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -575,9 +748,9 @@ function Info({ label, value, wide = false }) {
 function PlanningView({ items, onUpdate, onSeed }) {
   return (
     <div>
-      <SectionHeader eyebrow="Planning view" title="Next Reels">
-        Turn recommendations into a working production queue with editable hooks, scripts, dates,
-        platform assignments, and publishing status.
+      <SectionHeader eyebrow="Vista de planificación" title="Próximos Reels">
+        Convierte recomendaciones en una cola de producción con ganchos editables, guion, fecha,
+        plataforma y estado.
       </SectionHeader>
 
       {items.length === 0 ? (
@@ -585,24 +758,28 @@ function PlanningView({ items, onUpdate, onSeed }) {
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-slate-100 text-ink">
             <ClipboardList size={22} aria-hidden="true" />
           </div>
-          <h3 className="mt-4 text-xl font-semibold text-ink">No reels planned yet</h3>
+          <h3 className="mt-4 text-xl font-semibold text-ink">Aún no hay reels planificados</h3>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Add ideas from the recommendation engine or seed the plan with all current suggestions.
+            Agrega ideas desde el motor de recomendaciones o carga el plan con las sugerencias del
+            periodo analizado.
           </p>
           <button
             type="button"
             onClick={onSeed}
             className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-ink px-4 text-sm font-semibold text-white hover:bg-carbon"
-            title="Seed plan"
+            title="Cargar plan"
           >
             <RefreshCw size={17} aria-hidden="true" />
-            Seed plan
+            Cargar plan
           </button>
         </div>
       ) : (
         <div className="grid gap-4">
           {items.map((item, index) => (
-            <article key={item.sourceId} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <article
+              key={item.sourceId}
+              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+            >
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="flex flex-wrap gap-2">
@@ -616,9 +793,9 @@ function PlanningView({ items, onUpdate, onSeed }) {
                   onChange={(event) => onUpdate(index, 'status', event.target.value)}
                   className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold capitalize text-slate-700"
                 >
-                  <option value="pending">Pending</option>
-                  <option value="in progress">In progress</option>
-                  <option value="published">Published</option>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="en progreso">En progreso</option>
+                  <option value="publicado">Publicado</option>
                 </select>
               </div>
 
@@ -626,7 +803,7 @@ function PlanningView({ items, onUpdate, onSeed }) {
                 <label className="space-y-2">
                   <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
                     <Edit3 size={14} aria-hidden="true" />
-                    Hook
+                    Gancho
                   </span>
                   <input
                     value={item.hook}
@@ -636,7 +813,7 @@ function PlanningView({ items, onUpdate, onSeed }) {
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                    Script
+                    Guion
                   </span>
                   <textarea
                     value={item.script}
@@ -647,7 +824,7 @@ function PlanningView({ items, onUpdate, onSeed }) {
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                    Date
+                    Fecha
                   </span>
                   <input
                     type="date"
@@ -658,7 +835,7 @@ function PlanningView({ items, onUpdate, onSeed }) {
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                    Platform
+                    Plataforma
                   </span>
                   <select
                     value={item.platform}
@@ -674,6 +851,18 @@ function PlanningView({ items, onUpdate, onSeed }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function EmptyState({ title, body }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
+      <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-slate-100 text-ink">
+        <ClipboardList size={22} aria-hidden="true" />
+      </div>
+      <h3 className="mt-4 text-xl font-semibold text-ink">{title}</h3>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">{body}</p>
     </div>
   );
 }
