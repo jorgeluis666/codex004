@@ -4,7 +4,6 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardList,
-  Edit3,
   Eye,
   FileSpreadsheet,
   Lightbulb,
@@ -431,7 +430,7 @@ function ActiveView({ context }) {
     assumptions: <AssumptionsView dashboard={context.dashboard} />,
     themes: <ThemesView dashboard={context.dashboard} />,
     mix: <MixView dashboard={context.dashboard} />,
-    calendar: <CalendarView context={context} />,
+    calendar: <SimpleCalendarView context={context} />,
     actions: <ActionsView context={context} />,
     data: <DataView context={context} />,
   };
@@ -778,98 +777,202 @@ function MixView({ dashboard }) {
   );
 }
 
-function CalendarView({ context }) {
+function SimpleCalendarView({ context }) {
   const hasPlan = context.planningItems.length > 0;
+  const rows = hasPlan
+    ? context.planningItems.map((item, index) => ({ ...item, index, isPlanned: true }))
+    : buildSuggestedCalendarRows(context.recommendations, context.dateRange);
 
   return (
     <div className="space-y-5">
-      <SectionNumber number="8" title="Calendario semanal" />
-      {!hasPlan ? (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
-          <ClipboardList className="mx-auto text-slate-500" size={28} aria-hidden="true" />
-          <h3 className="mt-4 text-xl font-semibold text-[#0f1729]">Aún no hay reels planificados</h3>
-          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Carga las recomendaciones del periodo para crear una semana de producción.
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <SectionNumber number="8" title="Calendario semanal" />
+          <p className="mt-2 text-sm text-slate-500">
+            Tabla editorial simple para ordenar fecha, plataforma, idea, gancho y estado.
           </p>
-          <button
-            type="button"
-            onClick={() => context.recommendations.forEach(context.addRecommendationToPlan)}
-            className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#14213d] px-4 text-sm font-semibold text-white hover:bg-[#1f2d4a]"
-          >
-            <Plus size={17} aria-hidden="true" />
-            Crear calendario
-          </button>
         </div>
-      ) : (
-        <div className="grid gap-4">
-          {context.planningItems.map((item, index) => (
-            <article key={item.sourceId} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone="grape">{item.topic}</Badge>
-                    <Badge tone="carbon">{item.platform}</Badge>
-                  </div>
-                  <h3 className="mt-3 text-xl font-semibold text-[#0f1729]">{item.title}</h3>
-                </div>
-                <select
-                  value={item.status}
-                  onChange={(event) => context.updatePlanningItem(index, 'status', event.target.value)}
-                  className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold capitalize text-slate-700"
-                >
-                  <option value="pendiente">Pendiente</option>
-                  <option value="en progreso">En progreso</option>
-                  <option value="publicado">Publicado</option>
-                </select>
-              </div>
+        <button
+          type="button"
+          onClick={() => context.recommendations.forEach(context.addRecommendationToPlan)}
+          className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold ${
+            hasPlan
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              : 'bg-[#14213d] text-white hover:bg-[#1f2d4a]'
+          }`}
+        >
+          <Plus size={16} aria-hidden="true" />
+          {hasPlan ? 'Agregar ideas' : 'Usar sugerencias'}
+        </button>
+      </div>
 
-              <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr_180px_180px]">
-                <EditableField label="Gancho" value={item.hook} onChange={(value) => context.updatePlanningItem(index, 'hook', value)} />
-                <label className="space-y-2">
-                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Guion</span>
-                  <textarea
-                    value={item.script}
-                    onChange={(event) => context.updatePlanningItem(index, 'script', event.target.value)}
-                    rows={3}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 outline-none focus:border-blue-500"
-                  />
-                </label>
-                <EditableField type="date" label="Fecha" value={item.date} onChange={(value) => context.updatePlanningItem(index, 'date', value)} />
-                <label className="space-y-2">
-                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Plataforma</span>
-                  <select
-                    value={item.platform}
-                    onChange={(event) => context.updatePlanningItem(index, 'platform', event.target.value)}
-                    className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-blue-500"
-                  >
-                    <option>Instagram</option>
-                    <option>TikTok</option>
-                  </select>
-                </label>
-              </div>
-            </article>
-          ))}
+      <div className="grid gap-4 md:grid-cols-4">
+        <MiniStat label="Ideas" value={formatNumber(rows.length)} />
+        <MiniStat
+          label="Instagram"
+          value={formatNumber(rows.filter((row) => row.platform === 'Instagram').length)}
+        />
+        <MiniStat
+          label="TikTok"
+          value={formatNumber(rows.filter((row) => row.platform === 'TikTok').length)}
+        />
+        <MiniStat label="Estado" value={hasPlan ? 'Editable' : 'Sugerido'} />
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 bg-white px-5 py-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-[#0f1729]">
+                {hasPlan ? 'Plan semanal editable' : 'Plan sugerido'}
+              </h3>
+              <p className="text-sm text-slate-500">
+                {hasPlan
+                  ? 'Edita solo lo necesario sin abrir tarjetas grandes.'
+                  : 'Vista previa generada con las recomendaciones del periodo.'}
+              </p>
+            </div>
+            <Badge tone={hasPlan ? 'emerald' : 'amber'}>
+              {hasPlan ? 'En planificación' : 'Sin guardar'}
+            </Badge>
+          </div>
         </div>
-      )}
+
+        {rows.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              title="Sin ideas para calendarizar"
+              body="Selecciona un periodo con datos o revisa las recomendaciones."
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-[1120px] divide-y divide-slate-100 text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Día</th>
+                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Plataforma</th>
+                  <th className="px-4 py-3">Eje</th>
+                  <th className="px-4 py-3">Reel</th>
+                  <th className="px-4 py-3">Gancho</th>
+                  <th className="px-4 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((row, rowIndex) => (
+                  <tr key={row.sourceId ?? row.id ?? rowIndex} className="align-top hover:bg-slate-50">
+                    <td className="px-4 py-4">
+                      <span className="font-semibold capitalize text-[#0f1729]">
+                        {getWeekdayLabel(row.date)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.isPlanned ? (
+                        <input
+                          type="date"
+                          value={row.date}
+                          onChange={(event) =>
+                            context.updatePlanningItem(row.index, 'date', event.target.value)
+                          }
+                          className="min-h-10 w-[150px] rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                        />
+                      ) : (
+                        <span className="text-slate-600">{formatDate(row.date)}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.isPlanned ? (
+                        <select
+                          value={row.platform}
+                          onChange={(event) =>
+                            context.updatePlanningItem(row.index, 'platform', event.target.value)
+                          }
+                          className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                        >
+                          <option>Instagram</option>
+                          <option>TikTok</option>
+                        </select>
+                      ) : (
+                        <Badge tone="carbon">{row.platform}</Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <Badge tone="grape">{row.topic}</Badge>
+                    </td>
+                    <td className="max-w-[260px] px-4 py-4 font-semibold text-[#0f1729]">
+                      {row.title}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.isPlanned ? (
+                        <input
+                          value={row.hook}
+                          onChange={(event) =>
+                            context.updatePlanningItem(row.index, 'hook', event.target.value)
+                          }
+                          className="min-h-10 w-[300px] rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                        />
+                      ) : (
+                        <span className="block max-w-[300px] leading-6 text-slate-600">
+                          {row.hook}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.isPlanned ? (
+                        <select
+                          value={row.status}
+                          onChange={(event) =>
+                            context.updatePlanningItem(row.index, 'status', event.target.value)
+                          }
+                          className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold capitalize text-slate-700 outline-none focus:border-blue-500"
+                        >
+                          <option value="pendiente">Pendiente</option>
+                          <option value="en progreso">En progreso</option>
+                          <option value="publicado">Publicado</option>
+                        </select>
+                      ) : (
+                        <Badge tone="amber">Sugerido</Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {!hasPlan && rows.length > 0 ? (
+        <QuickRead>
+          <strong>Tip.</strong> Usa estas sugerencias como punto de partida. Al hacer clic en
+          “Usar sugerencias”, la tabla se vuelve editable.
+        </QuickRead>
+      ) : null}
     </div>
   );
 }
 
-function EditableField({ label, value, onChange, type = 'text' }) {
-  return (
-    <label className="space-y-2">
-      <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-        <Edit3 size={14} aria-hidden="true" />
-        {label}
-      </span>
-      <input
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-blue-500"
-      />
-    </label>
-  );
+function buildSuggestedCalendarRows(recommendations, dateRange) {
+  const base = new Date(`${dateRange.end}T00:00:00`);
+  base.setDate(base.getDate() + 1);
+
+  return recommendations.map((recommendation, index) => {
+    const date = new Date(base);
+    date.setDate(base.getDate() + index * 2);
+    return {
+      ...recommendation,
+      date: toInputDate(date),
+      status: 'sugerido',
+      isPlanned: false,
+    };
+  });
+}
+
+function getWeekdayLabel(value) {
+  if (!value) return 'Sin fecha';
+  const date = new Date(`${value}T00:00:00`);
+  return new Intl.DateTimeFormat('es-PE', { weekday: 'short' }).format(date);
 }
 
 function ActionsView({ context }) {
