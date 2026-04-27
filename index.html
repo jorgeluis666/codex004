@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,6 +7,20 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module">
+      const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+      const forceStatic = new URLSearchParams(window.location.search).has('static');
+      const isLocal = localHosts.has(window.location.hostname) && !forceStatic;
+
+      if (!isLocal) {
+        const stylesheet = document.createElement('link');
+        stylesheet.rel = 'stylesheet';
+        stylesheet.href = './assets/styles.css';
+        document.head.appendChild(stylesheet);
+      }
+
+      const entry = isLocal ? '/src/main.jsx' : './assets/app.js';
+      import(/* @vite-ignore */ entry);
+    </script>
   </body>
 </html>

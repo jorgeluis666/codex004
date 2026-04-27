@@ -65,9 +65,9 @@ npm run build
 
 ## Despliegue en GitHub Pages
 
-El repo incluye `.github/workflows/deploy-pages.yml` para publicar la carpeta `dist` en GitHub Pages cada vez que se hace push a `main`.
+El repo incluye `.github/workflows/deploy-pages.yml` para publicar `.pages-dist` en GitHub Pages cada vez que se hace push a `main`.
 
-En GitHub, la fuente de Pages debe estar configurada como `GitHub Actions`. La app usa `GITHUB_PAGES=true` durante el build para generar rutas con base `/codex004/`.
+Como el repositorio tambien puede estar configurado en GitHub Pages como `Deploy from a branch` usando `main / root`, el script `build:pages-root` copia los assets compilados a `assets/` y el `index.html` decide automaticamente entre Vite local y los archivos compilados de Pages.
 
 ## Futura Integración Con Google Sheets
 

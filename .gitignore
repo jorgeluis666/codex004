@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.pages-dist/
+.pages-entry.html
 .env
 .env.local
 .DS_Store
