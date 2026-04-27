@@ -1,21 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
-  CalendarDays,
   CheckCircle2,
   ClipboardList,
   Copy,
-  Eye,
   FileSpreadsheet,
   Lightbulb,
-  MessageSquare,
   Plus,
   RefreshCw,
   Search,
   Target,
   TrendingDown,
   TrendingUp,
-  Users,
 } from 'lucide-react';
 import {
   Bar,
@@ -445,56 +441,11 @@ function ExecutiveSummary({ context }) {
     return <EmptyState title="No hay datos en este periodo" body="Ajusta el rango de fechas o revisa la conexión con Metricool." />;
   }
 
-  const kpis = getKpis(dashboard);
-  const bestPlatform = dashboard.byPlatform[0]?.name ?? 'Sin datos';
-  const bestTopic = dashboard.byTopic[0]?.name ?? 'Sin datos';
-
   return (
     <div className="space-y-8">
       <SectionNumber number="1" title="Resumen ejecutivo" />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard icon={Users} label="Seguidores ganados" value={formatNumber(kpis.followers)} change={kpis.followersChange} color="blue" />
-        <KpiCard icon={Eye} label="Impresiones" value={formatNumber(kpis.impressions)} change={kpis.impressionsChange} color="rose" />
-        <KpiCard icon={MessageSquare} label="Interacciones" value={formatNumber(kpis.interactions)} change={kpis.interactionsChange} color="emerald" />
-        <KpiCard icon={CalendarDays} label="Publicaciones" value={formatNumber(kpis.posts)} change={kpis.postsChange} color="amber" />
-      </div>
-
-      <QuickRead>
-        <strong>Lectura rápida.</strong> {bestPlatform} concentra el mayor alcance del periodo y{' '}
-        {bestTopic} es el eje con más tracción. La estrategia debe repetir lo que combina alcance e
-        interacción, mejorar ganchos cuando el tema genera respuesta pero no escala, y corregir
-        mensajes cuando hay visibilidad sin acción.
-      </QuickRead>
-
       <ChannelsView dashboard={dashboard} embedded />
     </div>
-  );
-}
-
-function KpiCard({ icon: Icon, label, value, change, color }) {
-  const isPositive = change >= 0;
-  const colorMap = {
-    blue: 'bg-blue-100 text-blue-700',
-    rose: 'bg-rose-100 text-rose-700',
-    emerald: 'bg-emerald-100 text-emerald-700',
-    amber: 'bg-amber-100 text-amber-700',
-  };
-
-  return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-          <p className="mt-3 text-3xl font-semibold text-blue-700">{value}</p>
-          <p className={`mt-2 text-sm font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-            {signedPercent(change)} vs periodo anterior
-          </p>
-        </div>
-        <div className={`grid h-10 w-10 place-items-center rounded-lg ${colorMap[color]}`}>
-          <Icon size={20} aria-hidden="true" />
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -1316,20 +1267,6 @@ function MiniStat({ label, value }) {
       <p className="mt-1 font-semibold text-[#0f1729]">{value}</p>
     </div>
   );
-}
-
-function getKpis(dashboard) {
-  const items = dashboard.content;
-  return {
-    followers: sum(items, 'followersGained'),
-    followersChange: changeBetweenHalves(items, 'followersGained'),
-    impressions: sum(items, 'impressions'),
-    impressionsChange: changeBetweenHalves(items, 'impressions'),
-    interactions: items.reduce((total, item) => total + item.interactions, 0),
-    interactionsChange: changeBetweenHalves(items, 'likes'),
-    posts: items.length,
-    postsChange: changeBetweenHalves(items, 'reach'),
-  };
 }
 
 function EmptyState({ title, body }) {
