@@ -4,6 +4,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardList,
+  Copy,
   Eye,
   FileSpreadsheet,
   Lightbulb,
@@ -591,30 +592,88 @@ function TopContentView({ context }) {
     <div className="space-y-5">
       <SectionNumber number="3" title="Top contenido" />
       <Filters context={context} />
-      <div className="grid gap-4 xl:grid-cols-2">
-        {topItems.map((item, index) => (
-          <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                  #{index + 1} · {formatDate(item.publishedAt)}
-                </p>
-                <h3 className="mt-2 text-lg font-semibold text-[#0f1729]">{item.hook}</h3>
-              </div>
-              <Badge tone={item.decision.tone}>{item.decision.label}</Badge>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Badge tone="carbon">{item.platform}</Badge>
-              <Badge tone="grape">{item.category}</Badge>
-              <Badge tone="emerald">{formatPercent(item.engagementRate)}</Badge>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-              <MiniStat label="Alcance" value={formatNumber(item.reach)} />
-              <MiniStat label="Vistas" value={formatNumber(item.views)} />
-              <MiniStat label="Interacciones" value={formatNumber(item.interactions)} />
-            </div>
-          </article>
-        ))}
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-[#0f1729]">Ranking de publicaciones</h3>
+            <p className="text-sm text-slate-500">
+              Vista rápida para comparar alcance, interacción y siguiente acción.
+            </p>
+          </div>
+          <Badge tone="carbon">{formatNumber(topItems.length)} piezas</Badge>
+        </div>
+
+        {topItems.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              title="No hay contenido para mostrar"
+              body="Prueba con otro rango de fechas, categoría o término de búsqueda."
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-[1180px] divide-y divide-slate-100 text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+                <tr>
+                  <th className="w-16 px-4 py-3">#</th>
+                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Plataforma</th>
+                  <th className="px-4 py-3">Eje</th>
+                  <th className="px-4 py-3">Gancho</th>
+                  <th className="px-4 py-3 text-right">Alcance</th>
+                  <th className="px-4 py-3 text-right">Vistas</th>
+                  <th className="px-4 py-3 text-right">Interacciones</th>
+                  <th className="px-4 py-3 text-right">Engagement</th>
+                  <th className="px-4 py-3">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {topItems.map((item, index) => (
+                  <tr key={item.id} className="align-top transition hover:bg-slate-50">
+                    <td className="px-4 py-4">
+                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
+                        {index + 1}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 font-medium text-slate-600">
+                      {formatDate(item.publishedAt)}
+                    </td>
+                    <td className="px-4 py-4">
+                      <Badge tone="carbon">{item.platform}</Badge>
+                    </td>
+                    <td className="px-4 py-4">
+                      <Badge tone="grape">{item.category}</Badge>
+                    </td>
+                    <td className="max-w-[340px] px-4 py-4">
+                      <p className="font-semibold leading-6 text-[#0f1729]">{item.hook}</p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                        {item.objective}
+                      </p>
+                    </td>
+                    <td className="px-4 py-4 text-right font-semibold text-[#0f1729]">
+                      {formatNumber(item.reach)}
+                    </td>
+                    <td className="px-4 py-4 text-right font-semibold text-[#0f1729]">
+                      {formatNumber(item.views)}
+                    </td>
+                    <td className="px-4 py-4 text-right font-semibold text-[#0f1729]">
+                      {formatNumber(item.interactions)}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <Badge tone="emerald">{formatPercent(item.engagementRate)}</Badge>
+                    </td>
+                    <td className="px-4 py-4">
+                      <Badge tone={item.decision.tone}>{item.decision.label}</Badge>
+                      <p className="mt-2 max-w-[210px] text-xs leading-5 text-slate-500">
+                        {item.decision.reason}
+                      </p>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -782,6 +841,23 @@ function SimpleCalendarView({ context }) {
   const rows = hasPlan
     ? context.planningItems.map((item, index) => ({ ...item, index, isPlanned: true }))
     : buildSuggestedCalendarRows(context.recommendations, context.dateRange);
+  const [generatedPrompt, setGeneratedPrompt] = useState('');
+  const [promptCopied, setPromptCopied] = useState(false);
+
+  const handleGeneratePrompt = () => {
+    setGeneratedPrompt(buildCalendarExpansionPrompt(rows.slice(0, 5), context));
+    setPromptCopied(false);
+  };
+
+  const handleCopyPrompt = async () => {
+    if (!generatedPrompt) return;
+    try {
+      await navigator.clipboard.writeText(generatedPrompt);
+      setPromptCopied(true);
+    } catch {
+      setPromptCopied(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -949,8 +1025,110 @@ function SimpleCalendarView({ context }) {
           “Usar sugerencias”, la tabla se vuelve editable.
         </QuickRead>
       ) : null}
+
+      {rows.length > 0 ? (
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                Prompt para IA
+              </p>
+              <h3 className="mt-2 text-lg font-semibold text-[#0f1729]">
+                Ampliar a 15 reels para 2 semanas
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Genera una instrucción lista para copiar y pegar en ChatGPT u otra IA.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleGeneratePrompt}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#14213d] px-4 text-sm font-semibold text-white hover:bg-[#1f2d4a]"
+            >
+              <Lightbulb size={16} aria-hidden="true" />
+              Generar Prompt
+            </button>
+          </div>
+
+          {generatedPrompt ? (
+            <div className="mt-4 space-y-3">
+              <textarea
+                value={generatedPrompt}
+                readOnly
+                rows={12}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 outline-none focus:border-blue-500"
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleCopyPrompt}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-100 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                >
+                  <Copy size={16} aria-hidden="true" />
+                  {promptCopied ? 'Prompt copiado' : 'Copiar prompt'}
+                </button>
+                <span className="text-sm text-slate-500">
+                  Puedes editar el texto antes de pegarlo si quieres ajustar tono, duración o formato.
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   );
+}
+
+function buildCalendarExpansionPrompt(rows, context) {
+  const topics = context.dashboard.byTopic
+    .slice(0, 5)
+    .map((topic) => `${topic.name}: alcance ${formatNumber(topic.reach)}, engagement ${formatPercent(topic.engagementRate)}`)
+    .join('\n');
+  const platforms = context.dashboard.byPlatform
+    .map((platform) => `${platform.name}: alcance ${formatNumber(platform.reach)}, ${formatNumber(platform.followersGained)} seguidores ganados`)
+    .join('\n');
+  const recommendations = rows
+    .map(
+      (row, index) =>
+        `${index + 1}. Fecha sugerida: ${formatDate(row.date)} | Plataforma: ${row.platform} | Tema: ${row.topic} | Titulo: ${row.title} | Hook actual: ${row.hook} | Objetivo: ${row.objective ?? 'Ganar seguidores calificados'} | Razon: ${row.reason ?? 'Basado en rendimiento del periodo'}`,
+    )
+    .join('\n');
+
+  return `Actua como estratega senior de contenido para Lima Retail, una agencia de marketing digital enfocada en ecommerce, pauta digital, Meta Ads, Google Ads, TikTok Ads, ROAS, leads y WhatsApp.
+
+Objetivo: mejora estas 5 recomendaciones iniciales y amplialas a una lista de 15 reels para cubrir 2 semanas de contenido en Instagram Reels y TikTok.
+
+Periodo analizado: ${formatDate(context.dateRange.start)} - ${formatDate(context.dateRange.end)}
+Fuente de datos: ${context.dataSource}
+
+Senales del dashboard:
+Temas con mejor rendimiento:
+${topics || 'No hay temas suficientes.'}
+
+Rendimiento por plataforma:
+${platforms || 'No hay plataformas suficientes.'}
+
+Reglas de decision:
+- Buena interaccion pero bajo alcance: mejorar hook.
+- Alto alcance pero baja interaccion: mejorar mensaje.
+- Alto alcance y alta interaccion: repetir o crear secuela.
+- Bajo alcance y baja interaccion: detener, pivotar o cambiar angulo.
+
+5 recomendaciones iniciales:
+${recommendations}
+
+Instrucciones:
+1. Reescribe y mejora los titulos y hooks para que sean mas directos, especificos y atractivos en los primeros 3 segundos.
+2. Amplia la lista a 15 reels, pensados para publicarse durante 2 semanas.
+3. Mantén una mezcla entre Instagram y TikTok segun las senales de rendimiento, pero evita repetir exactamente la misma idea.
+4. Prioriza ideas que puedan aumentar seguidores, guardados, comentarios y mensajes de clientes potenciales.
+5. Usa un tono profesional, claro, comercial y educativo. Evita frases genericas.
+6. Cada reel debe tener una razon basada en datos o en la regla estrategica aplicada.
+
+Entrega el resultado en una tabla con estas columnas:
+# | Fecha sugerida | Plataforma | Tema | Titulo | Hook de 3 segundos | Guion breve | CTA | Objetivo | Razon basada en datos
+
+Incluye fechas sugeridas distribuidas en 2 semanas y una mezcla de piezas para repetir, mejorar gancho, mejorar mensaje y probar nuevos angulos.`;
 }
 
 function buildSuggestedCalendarRows(recommendations, dateRange) {
